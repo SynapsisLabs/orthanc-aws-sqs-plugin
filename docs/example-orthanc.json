@@ -20,8 +20,8 @@
 
     "Queues": [
       {
-        "Name":                       "results-sakarellos",
-        "Url":                        "https://sqs.eu-north-1.amazonaws.com/919099343976/results-sakarellos",
+        "Name":                       "results-myfacility",
+        "Url":                        "https://sqs.eu-north-1.amazonaws.com/<account-id>/results-myfacility",
         "WaitTimeSeconds":            20,
         "VisibilityTimeoutSeconds":   300,
         "MaxMessages":                10,

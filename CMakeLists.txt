@@ -34,8 +34,9 @@ target_include_directories(OrthancAwsSqs PRIVATE
 
 target_link_libraries(OrthancAwsSqs PRIVATE
     ${AWSSDK_LINK_LIBRARIES}
-    pthread
 )
+# pthread is already in AWSSDK_LINK_LIBRARIES on Linux/macOS — don't add
+# it again to avoid the linker's "ignoring duplicate libraries" warning.
 
 target_compile_definitions(OrthancAwsSqs PRIVATE
     ORTHANC_AWS_SQS_VERSION="${PROJECT_VERSION}"

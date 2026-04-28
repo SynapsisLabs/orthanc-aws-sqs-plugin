@@ -8,21 +8,12 @@
 #include <stdexcept>
 #include <string>
 
-// We use a minimal hand-written JSON peeker so we don't need to pull in
-// jsoncpp. Orthanc itself uses jsoncpp internally but plugins do not link
-// against it directly. The plugin SDK lets us request the host's full
-// configuration as a UTF-8 JSON string via OrthancPluginGetConfiguration().
-//
-// For robustness we parse with a small embedded JSON parser. To keep this
-// file dependency-free we use a header-only library; we vendor a minimal
-// subset inline below. (A real release would depend on nlohmann/json or
-// rapidjson; doing so is a one-line CMakeLists.txt change.)
-//
-// To keep the initial scaffold small we use the C library's escapes by
-// going through Orthanc's helper APIs where possible. Configuration JSON
-// is small (KB at most), so the parser overhead is negligible.
+// The Orthanc plugin SDK gives us the host's full configuration as a
+// UTF-8 JSON string via OrthancPluginGetConfiguration(). We parse with
+// nlohmann::json — header-only, available as a system package on
+// Debian/Ubuntu (`nlohmann-json3-dev`).
 
-#include <nlohmann/json.hpp>  // header-only, ubiquitous on Linux distros
+#include <nlohmann/json.hpp>
 
 namespace synapsis::aws_sqs {
 
@@ -96,7 +87,7 @@ PluginConfig Configuration::Load(OrthancPluginContext* context) {
     }
 
     out.enabled = cfg.value("Enabled", false);
-    out.region  = cfg.value("Region", out.region);
+    out.region  = cfg.value("Region", std::string{});
 
     if (!out.enabled) {
         return out;
@@ -110,6 +101,19 @@ PluginConfig Configuration::Load(OrthancPluginContext* context) {
         out.queues.reserve(queues.size());
         for (const auto& q : queues) {
             out.queues.push_back(ParseQueue(q, out.region));
+        }
+    }
+
+    // Region is required: either at the top level (used as default for all
+    // queues) or per-queue. ParseQueue inherits from out.region; if that's
+    // empty AND the queue didn't set its own, q.region ends up empty and
+    // the AWS SDK clients can't be constructed. Catch it here with a
+    // clear error.
+    for (const auto& q : out.queues) {
+        if (q.region.empty()) {
+            throw std::runtime_error(
+                "AwsSqs.Region (top-level) or AwsSqs.Queues[].Region must "
+                "be set when AwsSqs.Enabled is true (queue " + q.name + ")");
         }
     }
 

@@ -13,7 +13,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <stdexcept>
 #include <thread>
 
@@ -34,6 +36,31 @@ Aws::Client::ClientConfiguration MakeAwsConfig(const std::string& region) {
     return cfg;
 }
 
+// Decode an S3-event-notification key. AWS encodes object keys with a mix
+// of percent-encoding (`%XX`) and form-encoding (`+` for space). We accept
+// both — `+` is decoded to space, `%XX` to its byte. Lone `%` or `%X`
+// (truncated) is left as-is (AWS shouldn't emit those, but we don't want
+// to crash if it does).
+std::string UrlDecodeS3Key(const std::string& src) {
+    std::string out;
+    out.reserve(src.size());
+    for (size_t i = 0; i < src.size(); ++i) {
+        const char c = src[i];
+        if (c == '+') {
+            out.push_back(' ');
+        } else if (c == '%' && i + 2 < src.size()
+                   && std::isxdigit(static_cast<unsigned char>(src[i + 1]))
+                   && std::isxdigit(static_cast<unsigned char>(src[i + 2]))) {
+            const char hex[3] = { src[i + 1], src[i + 2], '\0' };
+            out.push_back(static_cast<char>(std::strtol(hex, nullptr, 16)));
+            i += 2;
+        } else {
+            out.push_back(c);
+        }
+    }
+    return out;
+}
+
 // Parse an S3 Event Notification body. Returns a list of (bucket, key) pairs.
 // AWS publishes:
 //   { "Records": [
@@ -44,6 +71,9 @@ Aws::Client::ClientConfiguration MakeAwsConfig(const std::string& region) {
 // "Test events" published when the notification is first wired up have the
 // shape { "Service": "Amazon S3", "Event": "s3:TestEvent", ... } and have
 // no Records[] — we silently treat those as a no-op.
+//
+// IMPORTANT: object keys arrive URL-encoded (per the S3 event notification
+// spec). They must be decoded before being passed to S3 GetObject.
 std::vector<std::pair<std::string, std::string>>
 ExtractS3Records(const std::string& message_body) {
     std::vector<std::pair<std::string, std::string>> out;
@@ -64,15 +94,15 @@ ExtractS3Records(const std::string& message_body) {
         const json& s3 = rec["s3"];
         if (!s3.is_object()) continue;
         std::string bucket;
-        std::string key;
+        std::string key_encoded;
         if (s3.contains("bucket") && s3["bucket"].is_object()) {
             bucket = s3["bucket"].value("name", std::string{});
         }
         if (s3.contains("object") && s3["object"].is_object()) {
-            key = s3["object"].value("key", std::string{});
+            key_encoded = s3["object"].value("key", std::string{});
         }
-        if (!bucket.empty() && !key.empty()) {
-            out.emplace_back(std::move(bucket), std::move(key));
+        if (!bucket.empty() && !key_encoded.empty()) {
+            out.emplace_back(std::move(bucket), UrlDecodeS3Key(key_encoded));
         }
     }
     return out;
@@ -144,6 +174,23 @@ void SqsPoller::Run() {
 
         for (const auto& msg : messages) {
             if (stop_.load(std::memory_order_relaxed)) break;
+
+            // Log how long this message has been sitting in SQS — useful
+            // for catching pipeline backlog before queue depth alarms fire.
+            const auto& attrs = msg.GetAttributes();
+            const auto sent_it = attrs.find(
+                Aws::SQS::Model::MessageSystemAttributeName::SentTimestamp);
+            if (sent_it != attrs.end()) {
+                long long sent_ms = std::strtoll(sent_it->second.c_str(),
+                                                 nullptr, 10);
+                long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                long long age_ms = now_ms - sent_ms;
+                if (age_ms > 30000) {  // log only if > 30s — keeps the chatter low
+                    LOG_INFO() << "[" << config_.name
+                               << "] message age " << (age_ms / 1000) << "s";
+                }
+            }
 
             bool ok = false;
             try {

@@ -69,8 +69,8 @@ Add to your `orthanc.json`:
     "Region": "eu-north-1",
     "Queues": [
       {
-        "Name": "results-sakarellos",
-        "Url": "https://sqs.eu-north-1.amazonaws.com/919099343976/results-sakarellos",
+        "Name": "results-myfacility",
+        "Url": "https://sqs.eu-north-1.amazonaws.com/<account-id>/results-myfacility",
         "WaitTimeSeconds": 20,
         "VisibilityTimeoutSeconds": 300,
         "MaxMessages": 10,
@@ -84,7 +84,7 @@ Add to your `orthanc.json`:
 | Field | Default | Notes |
 |---|---|---|
 | `Enabled` | `false` | Master switch |
-| `Region` | (none, required) | Default region used for SQS + S3 clients unless overridden per-queue |
+| `Region` | (none) | Default region used for SQS + S3 clients unless overridden per-queue. Either this or `Queues[].Region` must be set when `Enabled=true`. |
 | `Queues[]` | `[]` | One or more queues to poll |
 | `Queues[].Name` | (required) | Used in log lines |
 | `Queues[].Url` | (required) | Full SQS queue URL |
@@ -195,8 +195,8 @@ The plugin uses Orthanc's standard logging API, so all messages appear
 in Orthanc's log alongside the rest:
 
 ```
-W0429 10:15:22.123456 SqsPoller.cpp:78] [results-sakarellos] received 3 messages
-I0429 10:15:22.345678 SqsPoller.cpp:142] [results-sakarellos] ingested s3://synapsis-dicom-sakarellos/results/mg/2026/4/29/x.y.z/a.b.c.dcm (47821 bytes)
+W0429 10:15:22.123456 SqsPoller.cpp:78] [results-myfacility] received 3 messages
+I0429 10:15:22.345678 SqsPoller.cpp:142] [results-myfacility] ingested s3://my-bucket/results/2026/4/29/x.y.z/a.b.c.dcm (47821 bytes)
 ```
 
 If Orthanc is configured for verbose JSON logging the plugin's lines

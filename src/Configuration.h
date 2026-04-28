@@ -26,7 +26,10 @@ struct QueueConfig {
 
 struct PluginConfig {
     bool enabled = false;
-    std::string region = "eu-north-1";
+    // Region used for SQS / S3 clients unless a queue sets its own
+    // override. Required (non-empty) when enabled=true; Configuration::Load
+    // throws if it isn't.
+    std::string region;
     std::vector<QueueConfig> queues;
 };
 

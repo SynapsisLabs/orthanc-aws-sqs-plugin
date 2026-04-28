@@ -16,8 +16,9 @@
 
 namespace {
 
-OrthancPluginContext*                                       g_context = nullptr;
+OrthancPluginContext*                                       g_context         = nullptr;
 Aws::SDKOptions                                             g_aws_options;
+bool                                                        g_aws_initialised = false;
 std::vector<std::unique_ptr<synapsis::aws_sqs::SqsPoller>>  g_pollers;
 
 bool CheckOrthancVersion(OrthancPluginContext* context) {
@@ -64,6 +65,7 @@ ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* contex
     }
 
     Aws::InitAPI(g_aws_options);
+    g_aws_initialised = true;
 
     for (const auto& queue : cfg.queues) {
         try {
@@ -92,7 +94,10 @@ ORTHANC_PLUGINS_API void OrthancPluginFinalize() {
     }
     g_pollers.clear();
 
-    Aws::ShutdownAPI(g_aws_options);
+    if (g_aws_initialised) {
+        Aws::ShutdownAPI(g_aws_options);
+        g_aws_initialised = false;
+    }
 
     LOG_INFO() << "finalised";
     synapsis::aws_sqs::SetContext(nullptr);
