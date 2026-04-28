@@ -34,25 +34,24 @@ std::vector<uint8_t> S3Downloader::Download(const std::string& bucket,
     auto& result = outcome.GetResult();
     auto& body   = result.GetBody();
 
-    // Copy the response stream into a vector. Object size is small enough
-    // that a single allocation is fine; for very large objects you'd want
-    // chunked streaming, but DICOM SR / SC files are typically <100MB.
+    // The AWS SDK response body is generally not seekable in practice
+    // (tellg returns -1 for many configurations). Use Content-Length to
+    // size the allocation up front, then drain with an istreambuf_iterator.
+    // Falls back gracefully if Content-Length is missing or zero.
     std::vector<uint8_t> bytes;
-    body.seekg(0, std::ios::end);
-    auto size = body.tellg();
-    body.seekg(0, std::ios::beg);
+    const auto content_length = result.GetContentLength();
+    if (content_length > 0) {
+        bytes.reserve(static_cast<size_t>(content_length));
+    }
+    bytes.assign(std::istreambuf_iterator<char>(body),
+                 std::istreambuf_iterator<char>());
 
-    if (size > 0) {
-        bytes.resize(static_cast<size_t>(size));
-        body.read(reinterpret_cast<char*>(bytes.data()), size);
-        if (!body) {
-            throw std::runtime_error(
-                "Short read on S3 GetObject body for s3://" + bucket + "/" + key);
-        }
-    } else {
-        // Stream may not support tellg reliably; fall back to istreambuf iter
-        bytes.assign(std::istreambuf_iterator<char>(body),
-                     std::istreambuf_iterator<char>());
+    if (content_length > 0
+        && static_cast<long long>(bytes.size()) != content_length) {
+        throw std::runtime_error(
+            "Short read on S3 GetObject body for s3://" + bucket + "/" + key
+            + " (got " + std::to_string(bytes.size())
+            + " bytes, expected " + std::to_string(content_length) + ")");
     }
     return bytes;
 }

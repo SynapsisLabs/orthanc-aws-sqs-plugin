@@ -7,8 +7,6 @@
 
 #include <orthanc/OrthancCPlugin.h>
 
-#include <chrono>
-#include <optional>
 #include <string>
 #include <vector>
 

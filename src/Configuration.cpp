@@ -4,7 +4,6 @@
 
 #include "Logging.h"
 
-#include <cstring>
 #include <stdexcept>
 #include <string>
 
