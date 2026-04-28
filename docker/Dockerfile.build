@@ -1,45 +1,82 @@
-# Build container for orthanc-aws-sqs-plugin (Ubuntu 24.04 LTS).
+# Build container for orthanc-aws-sqs-plugin.
 #
-# Uses Ubuntu's prebuilt aws-sdk-cpp packages — much faster than building
-# the SDK from source (~5 min vs ~30 min). If you need a specific newer
-# AWS SDK version, replace the apt-get lines with a from-source build.
+# AWS SDK for C++ is NOT packaged by Debian or Ubuntu, so we build it
+# from source. The build is cached as a Docker layer — first invocation
+# takes ~15-25 min, subsequent rebuilds (plugin changes only) take ~30s.
 #
 # Usage:
 #   docker build -f docker/Dockerfile.build -t orthanc-aws-sqs-plugin:dev .
 #   docker run --rm -v "$(pwd)/build-output:/out" orthanc-aws-sqs-plugin:dev
 #   # → ./build-output/libOrthancAwsSqs.so
+#
+# This Dockerfile only ever produces a Linux .so. On macOS, build natively
+# (CMakeLists.txt sets PREFIX="" SUFFIX=".dylib" on APPLE).
 
-FROM ubuntu:24.04 AS build
+# ─── Stage 1: AWS SDK ─────────────────────────────────────────────────────
+# Cached separately so plugin-only changes don't trigger SDK rebuild.
+FROM debian:bookworm-slim AS aws-sdk
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+ARG AWS_SDK_VERSION=1.11.376
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
+        git \
         ca-certificates \
-        curl \
-        libaws-cpp-sdk-core-dev \
-        libaws-cpp-sdk-s3-dev \
-        libaws-cpp-sdk-sqs-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        zlib1g-dev \
+        libpulse-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN git clone --depth 1 --branch ${AWS_SDK_VERSION} \
+        https://github.com/aws/aws-sdk-cpp.git \
+    && cd aws-sdk-cpp \
+    && git submodule update --init --recursive --depth 1 \
+    && mkdir build && cd build \
+    && cmake .. \
+        -DBUILD_ONLY="sqs;s3" \
+        -DENABLE_TESTING=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/aws-sdk-cpp
+
+# ─── Stage 2: build the plugin ─────────────────────────────────────────────
+FROM aws-sdk AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
         nlohmann-json3-dev \
+        file \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY . /src
-
 RUN mkdir -p build \
     && cd build \
     && cmake .. -DCMAKE_BUILD_TYPE=Release \
     && make -j"$(nproc)" \
     && file libOrthancAwsSqs.so
 
-# Output stage — copy the .so to a path the run-time container can mount.
-#
-# This Dockerfile only ever produces a Linux .so. On macOS, build natively
-# (CMakeLists.txt sets PREFIX="" SUFFIX=".dylib" on APPLE) — the result is
-# a .dylib, not loadable in Linux Orthanc containers.
-FROM ubuntu:24.04 AS output
+# ─── Stage 3: tiny output stage ───────────────────────────────────────────
+# When run, copies the built artifact + the AWS SDK shared libraries to
+# the mounted /out so they can be deployed alongside the plugin.
+FROM debian:bookworm-slim AS output
 
-COPY --from=build /src/build/libOrthancAwsSqs.so /artifacts/libOrthancAwsSqs.so
+COPY --from=build /src/build/libOrthancAwsSqs.so   /artifacts/libOrthancAwsSqs.so
+COPY --from=aws-sdk /usr/local/lib/libaws-cpp-sdk-core.so  /artifacts/libaws-cpp-sdk-core.so
+COPY --from=aws-sdk /usr/local/lib/libaws-cpp-sdk-s3.so    /artifacts/libaws-cpp-sdk-s3.so
+COPY --from=aws-sdk /usr/local/lib/libaws-cpp-sdk-sqs.so   /artifacts/libaws-cpp-sdk-sqs.so
+COPY --from=aws-sdk /usr/local/lib/libaws-crt-cpp.so       /artifacts/libaws-crt-cpp.so
+# AWS SDK pulls in libaws-c-* common runtime libs at link time; copy any
+# that exist so the runtime container can find them. Ignore failures for
+# names that may differ between SDK versions.
+COPY --from=aws-sdk /usr/local/lib/ /artifacts/
 
-ENTRYPOINT ["sh", "-c", "cp /artifacts/* /out/ && ls -la /out/"]
+ENTRYPOINT ["sh", "-c", "cp -L /artifacts/libOrthancAwsSqs.so /artifacts/libaws-*.so /artifacts/*.so* /out/ 2>/dev/null; ls -la /out/"]

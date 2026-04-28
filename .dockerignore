@@ -1,0 +1,28 @@
+# Excluded from `docker build` context.
+# Match .gitignore for build/output state, plus things that contain
+# host-specific paths that would conflict with in-container paths.
+
+build/
+build-*/
+out/
+build-output/
+cmake-build-*/
+
+# Already-fetched headers / vendored deps — let the container fetch
+# them fresh inside its own filesystem
+third_party/
+
+# Editor / OS noise
+.git/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Already-built artefacts (we copy from the build stage instead)
+*.so
+*.so.*
+*.dylib
+*.dll
+*.o
+*.a

@@ -6,6 +6,7 @@
 #include "S3Downloader.h"
 
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/client/DefaultRetryStrategy.h>
 #include <aws/sqs/model/DeleteMessageRequest.h>
 #include <aws/sqs/model/Message.h>
 #include <aws/sqs/model/MessageSystemAttributeName.h>
@@ -30,9 +31,10 @@ Aws::Client::ClientConfiguration MakeAwsConfig(const std::string& region) {
     cfg.region = region;
     cfg.connectTimeoutMs = 5000;
     cfg.requestTimeoutMs = 30000;
-    // Use the SDK's standard retry mode (exponential backoff + jitter)
+    // Exponential backoff retry. DefaultRetryStrategy is available across
+    // all AWS SDK versions; the newer StandardRetryStrategy isn't.
     cfg.retryStrategy =
-        Aws::MakeShared<Aws::Client::StandardRetryStrategy>("aws-sqs-plugin", 3);
+        Aws::MakeShared<Aws::Client::DefaultRetryStrategy>("aws-sqs-plugin", 3);
     return cfg;
 }
 
