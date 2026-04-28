@@ -1,0 +1,32 @@
+{
+  "_comment_general": "Minimal Orthanc config showing how to load and configure the aws-sqs plugin.",
+
+  "Name":               "Orthanc",
+  "DicomServerEnabled": true,
+  "DicomPort":          4242,
+  "DicomAet":           "ORTHANC",
+  "HttpPort":           8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers": { "admin": "orthanc" },
+
+  "Plugins": [
+    "/usr/share/orthanc/plugins"
+  ],
+
+  "AwsSqs": {
+    "Enabled": true,
+    "Region":  "eu-north-1",
+
+    "Queues": [
+      {
+        "Name":                       "results-sakarellos",
+        "Url":                        "https://sqs.eu-north-1.amazonaws.com/919099343976/results-sakarellos",
+        "WaitTimeSeconds":            20,
+        "VisibilityTimeoutSeconds":   300,
+        "MaxMessages":                10,
+        "DeleteOnIngestFailure":      false
+      }
+    ]
+  }
+}

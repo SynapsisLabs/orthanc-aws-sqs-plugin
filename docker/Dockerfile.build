@@ -1,0 +1,54 @@
+# Build container for orthanc-aws-sqs-plugin.
+#
+# Usage:
+#   docker build -f docker/Dockerfile.build -t orthanc-aws-sqs-plugin:dev .
+#   docker run --rm -v "$(pwd)/build-output:/out" orthanc-aws-sqs-plugin:dev
+#
+# The output .so / .dylib lands in ./build-output/.
+
+FROM debian:bookworm-slim AS build
+
+ARG AWS_SDK_VERSION=1.11.376
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates curl \
+        libcurl4-openssl-dev libssl-dev zlib1g-dev libpulse-dev \
+        nlohmann-json3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build the AWS SDK for C++ (only the components we need)
+WORKDIR /tmp
+RUN git clone --depth 1 --branch ${AWS_SDK_VERSION} \
+        https://github.com/aws/aws-sdk-cpp.git aws-sdk-cpp \
+    && cd aws-sdk-cpp \
+    && git submodule update --init --recursive --depth 1 \
+    && mkdir build && cd build \
+    && cmake .. \
+        -DBUILD_ONLY="sqs;s3" \
+        -DENABLE_TESTING=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/aws-sdk-cpp
+
+# Build the plugin
+WORKDIR /src
+COPY . /src
+RUN mkdir -p build \
+    && cd build \
+    && cmake .. -DCMAKE_BUILD_TYPE=Release \
+    && make -j"$(nproc)"
+
+# Output stage — minimal, just the .so + run script
+FROM debian:bookworm-slim AS output
+
+WORKDIR /out
+COPY --from=build /src/build/libOrthancAwsSqs.so /artifacts/libOrthancAwsSqs.so
+
+# When invoked, copy the artifact to the mounted volume
+ENTRYPOINT ["sh", "-c", "cp /artifacts/* /out/ && ls -la /out/"]
