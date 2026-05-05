@@ -43,6 +43,7 @@ RUN git clone --depth 1 --branch ${AWS_SDK_VERSION} \
         -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DUSE_CRT_HTTP_CLIENT=ON \
     && make -j"$(nproc)" \
     && make install \
     && ldconfig \
