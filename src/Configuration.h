@@ -38,6 +38,10 @@ public:
     //
     // Throws std::runtime_error on malformed config (a fatal startup error).
     static PluginConfig Load(OrthancPluginContext* context);
+
+    // Same as Load() but takes the raw JSON string directly. Exposed for
+    // unit testing — does not depend on the Orthanc plugin context.
+    static PluginConfig Parse(const std::string& orthanc_config_json);
 };
 
 }  // namespace synapsis::aws_sqs

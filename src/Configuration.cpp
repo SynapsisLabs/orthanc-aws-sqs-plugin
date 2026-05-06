@@ -69,11 +69,11 @@ QueueConfig ParseQueue(const json& obj, const std::string& default_region) {
 
 }  // namespace
 
-PluginConfig Configuration::Load(OrthancPluginContext* context) {
+PluginConfig Configuration::Parse(const std::string& orthanc_config_json) {
     PluginConfig out;
 
-    std::string raw = GetOrthancConfigurationJson(context);
-    json root = json::parse(raw, /*cb*/ nullptr, /*allow_exceptions*/ true);
+    json root = json::parse(orthanc_config_json, /*cb*/ nullptr,
+                            /*allow_exceptions*/ true);
 
     if (!root.contains("AwsSqs") || root["AwsSqs"].is_null()) {
         // No config at all — plugin stays disabled
@@ -116,6 +116,11 @@ PluginConfig Configuration::Load(OrthancPluginContext* context) {
         }
     }
 
+    return out;
+}
+
+PluginConfig Configuration::Load(OrthancPluginContext* context) {
+    PluginConfig out = Parse(GetOrthancConfigurationJson(context));
     if (out.enabled && out.queues.empty()) {
         LOG_WARN() << "AwsSqs.Enabled is true but Queues[] is empty; nothing to do";
     }
