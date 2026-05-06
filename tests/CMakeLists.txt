@@ -50,5 +50,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
 endif()
 
+# Coverage instrumentation (gcov-format). Applies only to the test binary
+# and the project sources compiled into it — third-party deps and gtest are
+# unaffected because we set this on the unit_tests target, not globally.
+if(ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(FATAL_ERROR "ENABLE_COVERAGE requires GCC or Clang")
+    endif()
+    target_compile_options(unit_tests PRIVATE --coverage -O0 -g)
+    target_link_options(unit_tests    PRIVATE --coverage)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(unit_tests)

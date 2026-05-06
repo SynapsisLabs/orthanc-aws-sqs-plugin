@@ -85,8 +85,11 @@ endif()
 # ── Tests (opt-in) ─────────────────────────────────────────────────────────
 # Configure with `-DBUILD_TESTING=ON` to build the unit tests. Tests fetch
 # GoogleTest via FetchContent, so the regular plugin build stays dep-light.
-option(BUILD_TESTING "Build the OrthancAwsSqs unit tests" OFF)
-if(BUILD_TESTING)
+option(BUILD_TESTING   "Build the OrthancAwsSqs unit tests" OFF)
+# `-DENABLE_COVERAGE=ON` adds gcov instrumentation to the test binary so
+# `lcov`/`gcov` can produce a line-coverage report. Implies tests; CI uses it.
+option(ENABLE_COVERAGE "Instrument the test binary with --coverage"  OFF)
+if(BUILD_TESTING OR ENABLE_COVERAGE)
     enable_testing()
     add_subdirectory(tests)
 endif()

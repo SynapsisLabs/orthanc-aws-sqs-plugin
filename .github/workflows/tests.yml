@@ -20,13 +20,36 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake nlohmann-json3-dev
+            build-essential cmake nlohmann-json3-dev lcov
 
-      - name: Configure (tests-only, AWS SDK omitted)
-        run: cmake -S . -B build -DBUILD_TESTING=ON -DBUILD_PLUGIN=OFF
+      - name: Configure (tests-only + coverage, AWS SDK omitted)
+        run: cmake -S . -B build -DBUILD_TESTING=ON -DBUILD_PLUGIN=OFF -DENABLE_COVERAGE=ON
 
       - name: Build unit tests
         run: cmake --build build --target unit_tests -j
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+      # Capture coverage, strip out everything that isn't our own src/.
+      # `--ignore-errors mismatch,inconsistent` keeps lcov happy when gcov
+      # emits stale records for headers it has already processed.
+      - name: Generate coverage report
+        run: |
+          lcov --directory build --capture --output-file coverage.full.info \
+               --rc geninfo_unexecuted_blocks=1 \
+               --ignore-errors mismatch,inconsistent,gcov,source
+          lcov --remove coverage.full.info \
+               '/usr/*' '*/_deps/*' '*/tests/*' '*/c++/*' \
+               --output-file coverage.info \
+               --ignore-errors unused
+          echo "::group::Coverage summary (src/)"
+          lcov --list coverage.info
+          echo "::endgroup::"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.info
+          fail_ci_if_error: false  # don't fail the build on Codecov hiccups
+          verbose: true
