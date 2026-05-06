@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tests only depend on a C++17 toolchain, CMake, and nlohmann-json.
+      # GoogleTest is fetched at configure time via FetchContent, and the
+      # Orthanc plugin SDK header is downloaded by cmake/OrthancPluginSDK.cmake.
+      # We deliberately skip the AWS SDK here — the units under test don't
+      # touch it, and pulling it in would balloon CI from seconds to minutes.
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake nlohmann-json3-dev
+
+      - name: Configure (tests-only, AWS SDK omitted)
+        run: cmake -S . -B build -DBUILD_TESTING=ON -DBUILD_PLUGIN=OFF
+
+      - name: Build unit tests
+        run: cmake --build build --target unit_tests -j
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
