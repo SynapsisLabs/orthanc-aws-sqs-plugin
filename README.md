@@ -1,5 +1,8 @@
 # orthanc-aws-sqs-plugin
 
+[![tests](https://github.com/SynapsisLabs/orthanc-aws-sqs-plugin/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/SynapsisLabs/orthanc-aws-sqs-plugin/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/SynapsisLabs/orthanc-aws-sqs-plugin/branch/main/graph/badge.svg)](https://codecov.io/gh/SynapsisLabs/orthanc-aws-sqs-plugin)
+
 A native C++ plugin for the [Orthanc DICOM server](https://orthanc.uclouvain.be/)
 that polls one or more **AWS SQS queues**, treats each message as an
 **S3 Event Notification**, downloads the referenced DICOM object from S3,
