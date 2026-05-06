@@ -169,11 +169,19 @@ Output: `libOrthancAwsSqs.so` (Linux) / `OrthancAwsSqs.dylib` (macOS).
 
 ### Install into Orthanc
 
-Either copy the `.so` into Orthanc's plugin directory:
+If you built on the same host where Orthanc runs and the AWS SDK libraries
+are already installed in the system library path, copy the plugin into
+Orthanc's plugin directory:
 
 ```bash
 sudo cp libOrthancAwsSqs.so /usr/share/orthanc/plugins/
 ```
+
+If you are using a release archive or the Docker build output, copy the
+plugin and the bundled `libaws-*.so*`, `libaws-cpp-sdk-*.so`, `libaws-crt-cpp.so`,
+and `libs2n.so*` files together into the same plugin directory. Linux builds
+set `$ORIGIN` rpath so adjacent bundled dependencies are resolved from that
+directory.
 
 …or reference its full path in `orthanc.json`:
 

@@ -47,6 +47,14 @@ target_compile_definitions(OrthancAwsSqs PRIVATE
 # Linux the conventional "libOrthancAwsSqs.so" is fine.
 if(APPLE)
     set_target_properties(OrthancAwsSqs PROPERTIES PREFIX "" SUFFIX ".dylib")
+elseif(UNIX)
+    # Linux release bundles place AWS SDK shared libraries beside the plugin.
+    # Let the dynamic loader resolve those adjacent dependencies without
+    # requiring LD_LIBRARY_PATH or copying them into /usr/local/lib.
+    set_target_properties(OrthancAwsSqs PROPERTIES
+        BUILD_RPATH "\$ORIGIN"
+        INSTALL_RPATH "\$ORIGIN"
+    )
 endif()
 
 # ── Install rules ──────────────────────────────────────────────────────────

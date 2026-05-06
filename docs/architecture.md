@@ -57,7 +57,7 @@ acknowledge "we tried, move on" than retry — typically you keep it `false`.
 
 | Class | Example | Consequence |
 |---|---|---|
-| Transient AWS error | `RequestTimeout`, throttling | SDK auto-retries (StandardRetryStrategy). If still failing: thread loops with 5×1s backoff. |
+| Transient AWS error | `RequestTimeout`, throttling | SDK auto-retries (`DefaultRetryStrategy`). If still failing: thread loops with 5×1s backoff. |
 | Auth error | Expired Roles Anywhere session, no creds | Logs error every poll; SDK refreshes creds automatically when caller process refreshes them. |
 | Permanent S3 error | `NoSuchKey`, `AccessDenied` | Message is left visible → returns to queue → after `maxReceiveCount` lands in DLQ. |
 | Orthanc rejects `/instances` POST | Malformed DICOM, validation failure | Same as above — DLQ catches the poison message. |

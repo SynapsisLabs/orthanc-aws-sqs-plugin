@@ -1,7 +1,7 @@
 # Build container for orthanc-aws-sqs-plugin.
 #
-# AWS SDK for C++ is NOT packaged by Debian or Ubuntu, so we build it
-# from source. The build is cached as a Docker layer — first invocation
+# Build AWS SDK for C++ from source so the release artifact uses a known
+# SDK version and HTTP backend. The build is cached as a Docker layer — first invocation
 # takes ~15-25 min, subsequent rebuilds (plugin changes only) take ~30s.
 #
 # Usage:
@@ -44,6 +44,8 @@ RUN git clone --depth 1 --branch ${AWS_SDK_VERSION} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DUSE_CRT_HTTP_CLIENT=ON \
+        -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+        -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
     && make -j"$(nproc)" \
     && make install \
     && ldconfig \
